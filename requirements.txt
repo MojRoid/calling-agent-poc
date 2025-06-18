@@ -4,7 +4,7 @@ uvicorn[standard]==0.34.3
 python-multipart==0.0.6
 
 # WebSocket support
-websockets==10.1  # Keep at 10.1 for Windows compatibility
+websockets==15.0.1
 
 # Twilio SDK
 twilio==9.6.3

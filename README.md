@@ -52,6 +52,11 @@ cd calling-agent-poc
 pip install -r requirements.txt
 ```
 
+If you have an issue with audioop, also run:
+```bash
+pip install audioop-lts
+```
+
 3. Set up Google Cloud authentication:
 ```bash
 # Login to Google Cloud
@@ -109,7 +114,7 @@ Keep your responses conversational and appropriate for phone conversations.
 
 2. **Set up ngrok** (for local development):
    ```bash
-   ngrok http 8080 --domain=https://your-ngrok-url.ngrok-free.app
+   ngrok http 8080 --domain=your-ngrok-url.ngrok-free.app
    ```
    Update `SERVER_BASE_URL` in your `.env` file with your ngrok URL.
 

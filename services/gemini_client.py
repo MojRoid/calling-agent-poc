@@ -6,6 +6,8 @@ and integration with various audio streaming services.
 
 import asyncio
 import logging
+import ssl
+import os
 from typing import Optional, AsyncGenerator, Dict, Any
 from google import genai
 from google.genai import types
@@ -24,6 +26,60 @@ class GeminiLiveClient:
         self.client = None
         self.session = None
         self._connected = False
+        
+        # Configure SSL context for macOS certificate issues
+        self._setup_ssl_context()
+    
+    def _setup_ssl_context(self):
+        """Setup SSL context to handle certificate verification issues on macOS"""
+        try:
+            # Create a default SSL context
+            ssl_context = ssl.create_default_context()
+            
+            # Try to load system certificates
+            try:
+                ssl_context.load_default_certs()
+                logger.debug("Loaded default SSL certificates")
+            except Exception as e:
+                logger.warning(f"Could not load default certificates: {e}")
+            
+            # Try to load certificate from certifi if available
+            try:
+                import certifi
+                ssl_context.load_verify_locations(certifi.where())
+                logger.debug("Loaded certifi certificates")
+            except ImportError:
+                logger.warning("certifi not available")
+            except Exception as e:
+                logger.warning(f"Could not load certifi certificates: {e}")
+            
+            # Set the SSL context in the environment for websockets
+            # This is a workaround for the google-genai library
+            os.environ['SSL_CERT_FILE'] = self._get_cert_file()
+            os.environ['REQUESTS_CA_BUNDLE'] = self._get_cert_file()
+            
+            # Development SSL bypass option
+            if os.getenv('DISABLE_SSL_VERIFY', '').lower() == 'true':
+                logger.warning("⚠️  SSL verification disabled for development - NOT FOR PRODUCTION!")
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+                
+                # Also set for websockets
+                import websockets
+                if hasattr(websockets, 'client'):
+                    websockets.client.ssl_context_for_client = lambda *args, **kwargs: ssl_context
+            
+        except Exception as e:
+            logger.error(f"Error setting up SSL context: {e}")
+    
+    def _get_cert_file(self):
+        """Get the certificate file path"""
+        try:
+            import certifi
+            return certifi.where()
+        except ImportError:
+            # Fallback to system certificates
+            return '/etc/ssl/certs/ca-certificates.crt'
         
     async def __aenter__(self):
         """Async context manager entry."""
