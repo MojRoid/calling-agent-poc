@@ -1,0 +1,46 @@
+# Web framework
+fastapi==0.115.13
+uvicorn[standard]==0.34.3
+python-multipart==0.0.6
+
+# WebSocket support
+websockets==10.1  # Keep at 10.1 for Windows compatibility
+
+# Twilio SDK
+twilio==9.6.3
+
+# Google AI SDK
+google-genai==1.20.0  # Latest version, forced compatibility with websockets 10.1
+
+# Audio processing
+librosa==0.10.2.post1
+soundfile==0.12.1
+numpy==2.2.3  # Latest compatible version
+scipy==1.14.1
+resampy==0.4.3  # Added for high-quality resampling with librosa
+noisereduce==3.0.0  # Advanced noise reduction
+pydub==0.25.1  # Audio manipulation utilities
+
+# Environment variables
+python-dotenv==1.0.0
+
+# HTTP client
+httpx==0.28.1
+aiohttp==3.12.13
+requests==2.31.0
+
+# Additional dependencies
+pillow>=10.0.0  # Required by google-genai
+
+# Logging
+python-json-logger==2.0.7
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.25.2
+pytest-mock==3.14.1
+matplotlib==3.9.2
+
+# Development
+black==25.1.0
+pylint==3.3.7 
