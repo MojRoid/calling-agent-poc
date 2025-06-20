@@ -12,7 +12,6 @@ import numpy as np
 from scipy import signal
 
 from services.gemini_client import GeminiLiveClient
-from services.gemini_connection_pool import connection_pool
 from services.audio_converter_simple import SimpleAudioConverter
 from models import TwilioMessage
 from config import DEFAULT_SYSTEM_INSTRUCTIONS
@@ -31,7 +30,7 @@ class MediaStreamHandler:
         self.gemini_client = None
         self.audio_converter = SimpleAudioConverter()
         self.stream_sid = None
-        self.call_sid = None  # Store call SID for connection pool
+        self.call_sid = None
         self.recording_enabled = True
         self.input_audio_file = None
         self.input_recording_file_path = None
@@ -151,20 +150,23 @@ class MediaStreamHandler:
             self.recording_enabled = False
 
     async def connect_to_gemini(self, start_message: TwilioMessage) -> bool:
-        """Acquires a Gemini connection from the pool or creates a new one."""
+        """Creates and connects to a new Gemini client."""
         try:
-            logger.info("Acquiring Gemini connection from pool...")
+            logger.info("Creating new Gemini client...")
             
-            # Try to get a pre-warmed connection from the pool
+            # Create a new GeminiLiveClient
             start_time = datetime.now()
-            self.gemini_client = await connection_pool.acquire(self.call_sid)
+            self.gemini_client = GeminiLiveClient()
+            
+            # Connect with system instructions
+            success = await self.gemini_client.connect(system_instruction=DEFAULT_SYSTEM_INSTRUCTIONS)
             elapsed = (datetime.now() - start_time).total_seconds()
             
-            if self.gemini_client:
-                logger.info(f"✅ Successfully acquired Gemini connection in {elapsed:.2f}s")
+            if success:
+                logger.info(f"✅ Successfully connected to Gemini in {elapsed:.2f}s")
                 return True
             else:
-                logger.error("❌ Failed to acquire Gemini connection from pool")
+                logger.error("❌ Failed to connect to Gemini")
                 return False
                 
         except Exception as e:
@@ -338,13 +340,13 @@ class MediaStreamHandler:
             except Exception as e:
                 logger.error(f"Error closing output audio recording file: {e}")
         
-        # Release Gemini connection back to pool
-        if self.gemini_client and self.call_sid:
+        # Close Gemini connection
+        if self.gemini_client:
             try:
-                await connection_pool.release(self.call_sid)
-                logger.info("Gemini connection released back to pool.")
+                await self.gemini_client.close()
+                logger.info("Gemini connection closed.")
             except Exception as e:
-                logger.error(f"Error releasing Gemini connection: {e}")
+                logger.error(f"Error closing Gemini connection: {e}")
                 
         # Close WebSocket
         try:

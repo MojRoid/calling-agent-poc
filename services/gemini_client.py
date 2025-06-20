@@ -6,6 +6,9 @@ and integration with various audio streaming services.
 
 import asyncio
 import logging
+import ssl
+import os
+import platform
 from typing import Optional, AsyncGenerator, Dict, Any
 from google import genai
 from google.genai import types
@@ -24,6 +27,63 @@ class GeminiLiveClient:
         self.client = None
         self.session = None
         self._connected = False
+        
+        # Configure SSL context for macOS certificate issues
+        self._setup_ssl_context()
+    
+    def _setup_ssl_context(self):
+        """Setup SSL context to handle certificate verification issues on macOS"""
+        if platform.system() != "Darwin":
+            return
+            
+        try:
+            # Create a default SSL context
+            ssl_context = ssl.create_default_context()
+            
+            # Try to load system certificates
+            try:
+                ssl_context.load_default_certs()
+                logger.debug("Loaded default SSL certificates")
+            except Exception as e:
+                logger.warning(f"Could not load default certificates: {e}")
+            
+            # Try to load certificate from certifi if available
+            try:
+                import certifi
+                ssl_context.load_verify_locations(certifi.where())
+                logger.debug("Loaded certifi certificates")
+            except ImportError:
+                logger.warning("certifi not available")
+            except Exception as e:
+                logger.warning(f"Could not load certifi certificates: {e}")
+            
+            # Set the SSL context in the environment for websockets
+            # This is a workaround for the google-genai library
+            os.environ['SSL_CERT_FILE'] = self._get_cert_file()
+            os.environ['REQUESTS_CA_BUNDLE'] = self._get_cert_file()
+            
+            # Development SSL bypass option
+            if os.getenv('DISABLE_SSL_VERIFY', '').lower() == 'true':
+                logger.warning("⚠️  SSL verification disabled for development - NOT FOR PRODUCTION!")
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+                
+                # Also set for websockets
+                import websockets
+                if hasattr(websockets, 'client'):
+                    websockets.client.ssl_context_for_client = lambda *args, **kwargs: ssl_context
+            
+        except Exception as e:
+            logger.error(f"Error setting up SSL context: {e}")
+    
+    def _get_cert_file(self):
+        """Get the certificate file path"""
+        try:
+            import certifi
+            return certifi.where()
+        except ImportError:
+            # Fallback to system certificates
+            return '/etc/ssl/certs/ca-certificates.crt'
         
     async def __aenter__(self):
         """Async context manager entry."""
@@ -50,13 +110,22 @@ class GeminiLiveClient:
             self.client = genai.Client(
                 vertexai=True,
                 project=VERTEX_PROJECT_ID,
-                location=VERTEX_LOCATION,
-                # http_options={"api_version": "v1alpha"}
+                location=VERTEX_LOCATION
             )
             
             # API docs here https://ai.google.dev/api/live
             config = {
                 "response_modalities": ["AUDIO"],
+                "input_audio_transcription": {},
+                "output_audio_transcription": {},
+                "speech_config": {
+                    "language_code": "en-US",
+                    "voice_config": {
+                            "prebuilt_voice_config": {
+                                "voice_name": "Kore"
+                            }
+                        }
+                    },
                 "enable_affective_dialog": True,
                 "proactivity": {
                     "proactive_audio": False,
@@ -155,26 +224,19 @@ class GeminiLiveClient:
                     # Clear any pending audio when interrupted
                     continue
                 
-                # Log transcriptions if available
-                if hasattr(server_content, 'user_content') and server_content.user_content:
-                    if hasattr(server_content.user_content, 'turns') and server_content.user_content.turns:
-                        for turn in server_content.user_content.turns:
-                            if hasattr(turn, 'parts') and turn.parts:
-                                for part in turn.parts:
-                                    if hasattr(part, 'text') and part.text:
-                                        logger.info(f"🎤 User said: {part.text}")
-                
+                # Log transcriptions
+                if response.server_content.input_transcription:
+                    logger.info(f"🎤 User said: {response.server_content.input_transcription.text}")
+                if response.server_content.output_transcription:
+                    logger.info(f"🤖 Gemini says: {response.server_content.output_transcription.text}")
+
                 # Log what we're getting
                 if hasattr(server_content, 'model_turn') and server_content.model_turn:
                     logger.info(f"Response #{response_count}: Has model_turn with {len(server_content.model_turn.parts)} parts")
                     
-                    # Process model turn with audio and text
+                    # Process model turn with audio
                     for part_idx, part in enumerate(server_content.model_turn.parts):
                         logger.debug(f"Response #{response_count}, Part #{part_idx}: Processing part")
-                        
-                        # Check for text transcription
-                        if hasattr(part, 'text') and part.text:
-                            logger.info(f"🤖 Gemini says: {part.text}")
                         
                         # Check for audio data
                         if hasattr(part, 'inline_data') and part.inline_data and part.inline_data.data:
@@ -197,160 +259,6 @@ class GeminiLiveClient:
                     
         except Exception as e:
             logger.error(f"Error receiving from Gemini: {e}", exc_info=True)
-    
-    async def process_audio_file(self, audio_file_path: str, output_file_path: str = "gemini_output.wav") -> bool:
-        """
-        Process an audio file through Gemini and save the response.
-
-        
-        Args:
-            audio_file_path: Path to input audio file
-            output_file_path: Path to save Gemini's audio response
-            
-        Returns:
-            True if processing successful, False otherwise
-        """
-        import wave
-        import librosa
-        import soundfile as sf
-        import io
-        
-        try:
-            logger.info(f"Processing audio file: {audio_file_path}")
-            
-            # Initialize client
-            self.client = genai.Client(
-                vertexai=True,
-                project=VERTEX_PROJECT_ID,
-                location=VERTEX_LOCATION,
-                http_options={"api_version": "v1alpha"}
-            )
-            
-            config = {
-                "response_modalities": ["AUDIO"],
-                "system_instruction": "You are a helpful assistant. When someone greets you, respond warmly and ask how their day is going."
-            }
-            
-            # Load and convert audio to 16kHz PCM (like the working test)
-            y, sr = librosa.load(audio_file_path, sr=16000)
-            buffer = io.BytesIO()
-            sf.write(buffer, y, sr, format='RAW', subtype='PCM_16')
-            buffer.seek(0)
-            audio_bytes = buffer.read()
-            
-            logger.info(f"Loaded {len(audio_bytes)} bytes of audio data")
-            
-            total_received = 0
-            
-
-            async with self.client.aio.live.connect(model=self.model_name, config=config) as session:
-                logger.info("✅ Successfully connected to Gemini session!")
-                
-                # Create audio queue like the working test
-                audio_queue = asyncio.Queue()
-                
-                # Split audio into chunks and add to queue
-                chunk_size = 512
-                for i in range(0, len(audio_bytes), chunk_size):
-                    chunk = audio_bytes[i:i + chunk_size]
-                    await audio_queue.put(chunk)
-                
-                # Prepare output file
-                wf = wave.open(output_file_path, "wb")
-                wf.setnchannels(1)
-                wf.setsampwidth(2)  # 16-bit
-                wf.setframerate(24000)  # Gemini outputs 24kHz
-                
-                # Use TaskGroup for concurrent send/receive (like working test)
-                async with asyncio.TaskGroup() as tg:
-                    
-                    async def send_audio():
-                        """Send audio chunks to Gemini (like working test)"""
-                        chunk_count = 0
-                        while True:
-                            try:
-                                # Use timeout to prevent infinite waiting
-                                chunk = await asyncio.wait_for(audio_queue.get(), timeout=1.0)
-                                
-                                await session.send_realtime_input(
-                                    media={
-                                        "data": chunk,
-                                        "mime_type": "audio/pcm;rate=16000",
-                                    }
-                                )
-                                chunk_count += 1
-                                logger.debug(f"Sent chunk {chunk_count}: {len(chunk)} bytes")
-                                
-                                await asyncio.sleep(0.05)  # Same delay as working test
-                                audio_queue.task_done()
-                                
-                            except asyncio.TimeoutError:
-                                logger.info("✅ All audio chunks sent!")
-                                break
-                    
-                    async def receive_audio():
-                        """Receive audio responses from Gemini (like working test)"""
-                        nonlocal total_received
-                        response_count = 0
-                        turn_complete_received = False
-                        
-                        try:
-                            async for response in session.receive():
-                                response_count += 1
-                                logger.debug(f"Response #{response_count} received")
-                                
-                                server_content = response.server_content
-                                
-                                # Handle interruptions (like working test)
-                                if hasattr(server_content, "interrupted") and server_content.interrupted:
-                                    logger.info("Interruption detected - continuing")
-                                    continue
-                                
-                                if server_content and server_content.model_turn:
-                                    for part in server_content.model_turn.parts:
-                                        if hasattr(part, 'inline_data') and part.inline_data:
-                                            audio_chunk = part.inline_data.data
-                                            wf.writeframes(audio_chunk)
-                                            wf._file.flush()
-                                            total_received += len(audio_chunk)
-                                            logger.debug(f"Received audio chunk: {len(audio_chunk)} bytes")
-                                
-                                # Handle turn completion (like working test)
-                                if server_content and server_content.turn_complete:
-                                    logger.info("✅ Gemini done talking")
-                                    turn_complete_received = True
-                                
-                                # Safety breaks (like working test)
-                                if response_count > 100:
-                                    logger.info("Many responses received, breaking loop")
-                                    break
-                                    
-                                if turn_complete_received and response_count > 35:
-                                    logger.info("Turn complete received and sufficient processing time elapsed")
-                                    break
-                                    
-                        except Exception as e:
-                            logger.error(f"Error during audio reception: {e}")
-                    
-                    # Start both tasks
-                    tg.create_task(send_audio())
-                    tg.create_task(receive_audio())
-                
-                # Close output file
-                wf.close()
-            
-            if total_received > 0:
-                logger.info(f"✅ SUCCESS! Received {total_received} bytes of audio response")
-                logger.info(f"📁 Saved to: {output_file_path}")
-                logger.info(f"🎵 Duration: ~{total_received / 48000:.1f} seconds")
-                return True
-            else:
-                logger.warning("No audio response received from Gemini")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Error processing audio file: {e}")
-            return False
     
     async def close(self):
         """Close the Gemini session and cleanup resources."""
