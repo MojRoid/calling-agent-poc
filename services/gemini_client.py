@@ -12,7 +12,7 @@ import platform
 from typing import Optional, AsyncGenerator, Dict, Any
 from google import genai
 from google.genai import types
-from config import VERTEX_PROJECT_ID, VERTEX_LOCATION
+from config import VERTEX_PROJECT_ID, VERTEX_LOCATION, GEMINI_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +22,10 @@ class GeminiLiveClient:
     This class handles the connection, audio input/output, and session management.
     """
     
-    def __init__(self, model_name: str = "gemini-live-2.5-flash-preview-native-audio"):
-        self.model_name = model_name
+    def __init__(self, model_name: str = None):
+        self.model_name = model_name or GEMINI_MODEL
+        if not self.model_name:
+            raise ValueError("GEMINI_MODEL not set in environment variables")
         self.client = None
         self.session = None
         self._connected = False

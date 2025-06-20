@@ -36,7 +36,7 @@ Phone Call ↔ Twilio ↔ Your Server ↔ Google Gemini Live API
   - Phone Number
 - Google Cloud Project with:
   - Vertex AI API enabled
-  - Access to `gemini-2.5-flash-preview-native-audio-dialog` model
+  - Access to `gemini-live-2.5-flash-preview-native-audio` model
   - Proper authentication (gcloud CLI logged in)
 
 ## Installation
@@ -264,7 +264,7 @@ If you see errors about missing configuration values:
 - Verify your project has access to the Gemini model
 
 ### Model Access
-If you see "model not found" errors, your project needs access to `gemini-2.5-flash-preview-native-audio-dialog`:
+If you see "model not found" errors, your project needs access to the model:
 1. Visit [Vertex AI Model Garden](https://console.cloud.google.com/vertex-ai/model-garden)
 2. Search for the model
 3. Request access for your project
