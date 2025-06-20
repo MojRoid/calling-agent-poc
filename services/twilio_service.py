@@ -76,7 +76,6 @@ class TwilioService:
         logger.info(f"Generating TwiML with WebSocket URL: {ws_endpoint}")
         logger.info(f"Call answered by: {answered_by if answered_by else 'unknown (treating as human)'}")
         
-        # Connect directly to WebSocket without any Say messages
         # Gemini will handle the initial greeting with recording disclaimer
         twiml = '''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
