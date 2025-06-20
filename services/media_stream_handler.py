@@ -30,7 +30,7 @@ class MediaStreamHandler:
         self.gemini_client = None
         self.audio_converter = SimpleAudioConverter()
         self.stream_sid = None
-        self.call_sid = None  # Store call SID for connection pool
+        self.call_sid = None
         self.recording_enabled = True
         self.input_audio_file = None
         self.input_recording_file_path = None
