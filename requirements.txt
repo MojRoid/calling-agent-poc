@@ -4,13 +4,13 @@ uvicorn[standard]==0.34.3
 python-multipart==0.0.6
 
 # WebSocket support
-websockets==15.0.1
+websockets==15.0.1 # Windows may require you to install 10.1 if you `extra_headers` issues. Uninstall websockets then run `pip install websockets==10.1 --force-reinstall --no-deps`
 
 # Twilio SDK
 twilio==9.6.3
 
 # Google AI SDK
-google-genai==1.20.0  # Latest version, forced compatibility with websockets 10.1
+google-genai==1.20.0
 
 # Audio processing
 librosa==0.10.2.post1

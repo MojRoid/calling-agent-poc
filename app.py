@@ -11,7 +11,6 @@ from config import SERVER_PORT, DEFAULT_SYSTEM_INSTRUCTIONS
 from models import PlaceCallRequest, PlaceCallResponse
 from services.twilio_service import TwilioService
 from services.media_stream_handler import MediaStreamHandler
-from services.gemini_connection_pool import connection_pool
 
 # Enhanced logging setup
 def setup_logging():
@@ -75,29 +74,12 @@ async def startup_event():
     """Application startup"""
     logger.info("Starting Calling Agent Service...")
     logger.info(f"System prompt loaded: {len(DEFAULT_SYSTEM_INSTRUCTIONS)} characters")
-    
-    # Start the Gemini connection pool
-    try:
-        await connection_pool.start()
-        logger.info("✅ Gemini connection pool initialized")
-    except Exception as e:
-        logger.error(f"Failed to start connection pool: {e}")
-        # Continue anyway - connections will be created on demand
-    
     logger.info("Services initialized successfully")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Application shutdown"""
     logger.info("Shutting down Calling Agent Service...")
-    
-    # Stop the connection pool
-    try:
-        await connection_pool.stop()
-        logger.info("✅ Gemini connection pool stopped")
-    except Exception as e:
-        logger.error(f"Error stopping connection pool: {e}")
-    
     logger.info("Shutdown complete")
 
 @app.get("/")
@@ -182,8 +164,6 @@ async def handle_call_status(request: Request):
             logger.info(f"📞 Call {call_sid} initiated - preparing to dial")
         elif call_status == "ringing":
             logger.info(f"🔔 Call {call_sid} is ringing - waiting for answer")
-            logger.info(f"💡 Pre-warmed connections available: {connection_pool.available_connections.qsize()}")
-            # Could trigger additional pre-warming here if needed
         elif call_status == "answered":
             logger.info(f"✅ Call {call_sid} answered - WebSocket will connect soon")
         elif call_status in ["busy", "no-answer", "failed"]:

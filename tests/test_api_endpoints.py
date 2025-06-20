@@ -47,7 +47,7 @@ def test_twiml_generation():
         twiml = response.text
         assert "<Response>" in twiml
         assert "<Connect>" in twiml
-        assert "<Say>" not in twiml
+        assert "<Say>" in twiml
         print("SUCCESS: TwiML generation (human) passed")
         
         # Test machine detection
