@@ -83,4 +83,14 @@ class GeminiResponse(BaseModel):
     setupComplete: Optional[Any] = None
     serverContent: Optional[ServerContent] = None
     toolCall: Optional[Any] = None
-    toolCallCancellation: Optional[Any] = None 
+    toolCallCancellation: Optional[Any] = None
+
+# Call Summary Models
+class CallSummary(BaseModel):
+    call_transcript: str
+    quote_obtained: bool
+    quote: Optional[str] = None
+    visit_booked: bool
+    visit_booked_date: Optional[str] = None
+    visit_time: Optional[str] = None
+    trade_sentiment_analysis: str 

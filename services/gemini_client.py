@@ -22,13 +22,14 @@ class GeminiLiveClient:
     This class handles the connection, audio input/output, and session management.
     """
     
-    def __init__(self, model_name: str = None):
+    def __init__(self, model_name: str = None, function_call_handler=None):
         self.model_name = model_name or GEMINI_MODEL
         if not self.model_name:
             raise ValueError("GEMINI_MODEL not set in environment variables")
         self.client = None
         self.session = None
         self._connected = False
+        self.function_call_handler = function_call_handler
         
         # Configure SSL context for macOS certificate issues
         self._setup_ssl_context()
@@ -140,7 +141,51 @@ class GeminiLiveClient:
                         "prefix_padding_ms": 20,
                         "silence_duration_ms": 250,
                     }
-                }
+                },
+                "tools": [
+                    {
+                        "function_declarations": [
+                            {
+                                "name": "summarize_call_outcome",
+                                "description": "Summarize the outcome of the call with the tradesperson",
+                                "parameters": {
+                                    "type": "object",
+                                    "properties": {
+                                        "call_transcript": {
+                                            "type": "string",
+                                            "description": "A brief summary of the conversation that took place"
+                                        },
+                                        "quote_obtained": {
+                                            "type": "boolean",
+                                            "description": "True if a quote or price estimate was obtained"
+                                        },
+                                        "quote": {
+                                            "type": "string",
+                                            "description": "The actual quote amount/range if obtained, null if not"
+                                        },
+                                        "visit_booked": {
+                                            "type": "boolean",
+                                            "description": "True if an appointment or visit was scheduled"
+                                        },
+                                        "visit_booked_date": {
+                                            "type": "string",
+                                            "description": "The date of the visit if booked (format: YYYY-MM-DD), null if not"
+                                        },
+                                        "visit_time": {
+                                            "type": "string",
+                                            "description": "The time of the visit if specified (format: HH:MM), null if not"
+                                        },
+                                        "trade_sentiment_analysis": {
+                                            "type": "string",
+                                            "description": "Assessment of the tradesperson's attitude and sentiment during the call"
+                                        }
+                                    },
+                                    "required": ["call_transcript", "quote_obtained", "visit_booked", "trade_sentiment_analysis"]
+                                }
+                            }
+                        ]
+                    }
+                ]
             }
             
             if system_instruction:
@@ -231,6 +276,30 @@ class GeminiLiveClient:
                     logger.info(f"🎤 User said: {response.server_content.input_transcription.text}")
                 if response.server_content.output_transcription:
                     logger.info(f"🤖 Gemini says: {response.server_content.output_transcription.text}")
+                
+                # Handle function calls in model_turn parts
+                if hasattr(server_content, 'model_turn') and server_content.model_turn:
+                    for part in server_content.model_turn.parts:
+                        if hasattr(part, 'function_call') and part.function_call:
+                            logger.info(f"🔧 Function call detected: {part.function_call}")
+                            if self.function_call_handler:
+                                try:
+                                    await self.function_call_handler(part.function_call)
+                                except Exception as e:
+                                    logger.error(f"Error handling function call: {e}")
+                            else:
+                                logger.warning("Function call received but no handler provided")
+                
+                # Also handle top-level function calls
+                if hasattr(response.server_content, 'function_call') and response.server_content.function_call:
+                    logger.info(f"🔧 Top-level function call detected: {response.server_content.function_call}")
+                    if self.function_call_handler:
+                        try:
+                            await self.function_call_handler(response.server_content.function_call)
+                        except Exception as e:
+                            logger.error(f"Error handling function call: {e}")
+                    else:
+                        logger.warning("Function call received but no handler provided")
 
                 # Log what we're getting
                 if hasattr(server_content, 'model_turn') and server_content.model_turn:

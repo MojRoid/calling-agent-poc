@@ -13,7 +13,7 @@ from scipy import signal
 
 from services.gemini_client import GeminiLiveClient
 from services.audio_converter_simple import SimpleAudioConverter
-from models import TwilioMessage
+from models import TwilioMessage, CallSummary
 from config import DEFAULT_SYSTEM_INSTRUCTIONS
 
 logger = logging.getLogger(__name__)
@@ -39,6 +39,62 @@ class MediaStreamHandler:
         self.gemini_audio_chunks_received = 0
         self.total_gemini_audio_bytes = 0
         self.is_gemini_speaking = False
+        self.call_summary = None
+
+    async def handle_function_call(self, function_call):
+        """Handle function calls from Gemini."""
+        try:
+            function_name = function_call.name
+            args = function_call.args if hasattr(function_call, 'args') else {}
+            
+            logger.info(f"📞 Handling function call: {function_name}")
+            logger.info(f"📋 Function arguments: {args}")
+            
+            if function_name == "summarize_call_outcome":
+                # Extract and validate the call summary data
+                call_summary_data = {
+                    "call_transcript": args.get("call_transcript", ""),
+                    "quote_obtained": args.get("quote_obtained", False),
+                    "quote": args.get("quote"),
+                    "visit_booked": args.get("visit_booked", False),
+                    "visit_booked_date": args.get("visit_booked_date"),
+                    "visit_time": args.get("visit_time"),
+                    "trade_sentiment_analysis": args.get("trade_sentiment_analysis", "neutral")
+                }
+                
+                # Create CallSummary object
+                self.call_summary = CallSummary(**call_summary_data)
+                
+                logger.info("✅ Call summary captured:")
+                logger.info(f"   📝 Transcript: {self.call_summary.call_transcript}")
+                logger.info(f"   💰 Quote obtained: {self.call_summary.quote_obtained}")
+                if self.call_summary.quote:
+                    logger.info(f"   💷 Quote: {self.call_summary.quote}")
+                logger.info(f"   📅 Visit booked: {self.call_summary.visit_booked}")
+                if self.call_summary.visit_booked_date:
+                    logger.info(f"   📆 Visit date: {self.call_summary.visit_booked_date}")
+                if self.call_summary.visit_time:
+                    logger.info(f"   ⏰ Visit time: {self.call_summary.visit_time}")
+                logger.info(f"   😊 Sentiment: {self.call_summary.trade_sentiment_analysis}")
+                
+                # Send function response back to Gemini
+                if hasattr(self.gemini_client, 'session') and self.gemini_client.session:
+                    function_response = {
+                        "function_response": {
+                            "name": function_name,
+                            "response": {"status": "success", "message": "Call summary recorded successfully"}
+                        }
+                    }
+                    try:
+                        await self.gemini_client.session.send(function_response)
+                        logger.info("📤 Function response sent to Gemini")
+                    except Exception as e:
+                        logger.error(f"Error sending function response to Gemini: {e}")
+            else:
+                logger.warning(f"Unknown function call: {function_name}")
+                
+        except Exception as e:
+            logger.error(f"Error handling function call: {e}", exc_info=True)
 
     async def handle_stream(self):
         """
@@ -154,9 +210,9 @@ class MediaStreamHandler:
         try:
             logger.info("Creating new Gemini client...")
             
-            # Create a new GeminiLiveClient
+            # Create a new GeminiLiveClient with function call handler
             start_time = datetime.now()
-            self.gemini_client = GeminiLiveClient()
+            self.gemini_client = GeminiLiveClient(function_call_handler=self.handle_function_call)
             
             # Connect with system instructions
             success = await self.gemini_client.connect(system_instruction=DEFAULT_SYSTEM_INSTRUCTIONS)
@@ -301,6 +357,21 @@ class MediaStreamHandler:
     async def cleanup(self):
         """Cleans up resources."""
         logger.info("Cleaning up resources...")
+        
+        # Log final call summary if available
+        if self.call_summary:
+            logger.info("=== FINAL CALL SUMMARY ===")
+            logger.info(f"Transcript: {self.call_summary.call_transcript}")
+            logger.info(f"Quote obtained: {self.call_summary.quote_obtained}")
+            if self.call_summary.quote:
+                logger.info(f"Quote: {self.call_summary.quote}")
+            logger.info(f"Visit booked: {self.call_summary.visit_booked}")
+            if self.call_summary.visit_booked_date:
+                logger.info(f"Visit date: {self.call_summary.visit_booked_date}")
+            if self.call_summary.visit_time:
+                logger.info(f"Visit time: {self.call_summary.visit_time}")
+            logger.info(f"Trade sentiment: {self.call_summary.trade_sentiment_analysis}")
+            logger.info("=========================")
         
         # Close input audio recording file
         if self.recording_enabled and self.input_audio_file:
