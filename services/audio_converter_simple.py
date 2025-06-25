@@ -1,5 +1,8 @@
 import numpy as np
 import logging
+import warnings
+# Suppress audioop deprecation warning until we can replace it
+warnings.filterwarnings("ignore", message="'audioop' is deprecated", category=DeprecationWarning)
 import audioop
 from scipy import signal
 

@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 from datetime import datetime
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, HTTPException, Request
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,10 +52,28 @@ if DEFAULT_SYSTEM_INSTRUCTIONS is None:
     logger.error("Please ensure 'gemini_system_prompt.txt' exists and contains valid instructions.")
     sys.exit(1)
 
+# Initialize services
+twilio_service = TwilioService()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan management"""
+    # Startup
+    logger.info("Starting Calling Agent Service...")
+    logger.info(f"System prompt loaded: {len(DEFAULT_SYSTEM_INSTRUCTIONS)} characters")
+    logger.info("Services initialized successfully")
+    
+    yield
+    
+    # Shutdown
+    logger.info("Shutting down Calling Agent Service...")
+    logger.info("Shutdown complete")
+
 app = FastAPI(
     title="Calling Agent Service",
     description="AI-powered phone calling agent with real-time audio streaming",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Add CORS middleware
@@ -65,22 +84,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Initialize services
-twilio_service = TwilioService()
-
-@app.on_event("startup")
-async def startup_event():
-    """Application startup"""
-    logger.info("Starting Calling Agent Service...")
-    logger.info(f"System prompt loaded: {len(DEFAULT_SYSTEM_INSTRUCTIONS)} characters")
-    logger.info("Services initialized successfully")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Application shutdown"""
-    logger.info("Shutting down Calling Agent Service...")
-    logger.info("Shutdown complete")
 
 @app.get("/")
 async def root():
