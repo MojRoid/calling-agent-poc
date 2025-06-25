@@ -25,7 +25,7 @@ def setup_logging():
     
     # Configure logging
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.INFO,  # Changed from DEBUG to INFO to reduce noise
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.FileHandler(log_file, encoding='utf-8'),
@@ -36,8 +36,26 @@ def setup_logging():
     # Set specific loggers
     logging.getLogger("uvicorn").setLevel(logging.INFO)
     logging.getLogger("uvicorn.access").setLevel(logging.INFO)
-    logging.getLogger("websockets").setLevel(logging.DEBUG)
-    logging.getLogger("twilio").setLevel(logging.DEBUG)
+    
+    # Reduce noisy websocket logs
+    logging.getLogger("websockets").setLevel(logging.WARNING)
+    logging.getLogger("websockets.client").setLevel(logging.WARNING)
+    logging.getLogger("websockets.server").setLevel(logging.WARNING)
+    
+    # Reduce noisy Twilio logs
+    logging.getLogger("twilio").setLevel(logging.INFO)
+    logging.getLogger("twilio.http_client").setLevel(logging.WARNING)
+    
+    # Reduce noisy multipart logs
+    logging.getLogger("multipart").setLevel(logging.WARNING)
+    logging.getLogger("multipart.multipart").setLevel(logging.WARNING)
+    
+    # Reduce noisy HTTP connection logs
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
+    
+    # Reduce noisy httpx logs
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     
     logger = logging.getLogger(__name__)
     logger.info(f"Logging configured. Log file: {log_file}")
@@ -182,13 +200,11 @@ async def handle_call_status(request: Request):
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for media streaming"""
     client_ip = websocket.client.host if websocket.client else "unknown"
-    logger.info(f"=== New WebSocket connection attempt from {client_ip} ===")
-    logger.info(f"WebSocket headers: {websocket.headers}")
     
     try:
         # Accept the WebSocket connection
         await websocket.accept()
-        logger.info(f"✅ WebSocket connection accepted from {client_ip}")
+        logger.info(f"📞 New call from {client_ip}")
         
         # The handler will manage the entire lifecycle of the stream
         media_handler = MediaStreamHandler(websocket)
@@ -196,8 +212,6 @@ async def websocket_endpoint(websocket: WebSocket):
         
     except Exception as e:
         logger.error(f"❌ Error in WebSocket endpoint: {e}", exc_info=True)
-    finally:
-        logger.info(f"=== WebSocket connection with {client_ip} has been closed ===")
 
 if __name__ == "__main__":
     logger.info("Starting Calling Agent Server...")

@@ -108,8 +108,6 @@ class GeminiLiveClient:
             True if connection successful, False otherwise
         """
         try:
-            logger.info(f"Initializing Gemini client for project {VERTEX_PROJECT_ID}")
-            
             self.client = genai.Client(
                 vertexai=True,
                 project=VERTEX_PROJECT_ID,
@@ -190,10 +188,6 @@ class GeminiLiveClient:
             
             if system_instruction:
                 config["system_instruction"] = system_instruction
-                logger.info(f"Using system instruction: {system_instruction}")
-            
-            logger.info(f"Connecting to Gemini model: {self.model_name}")
-            logger.info(f"Config: affective_dialog=True, proactive_audio=True, VAD=enabled")
             
             self._session_context = self.client.aio.live.connect(
                 model=self.model_name, 
@@ -203,7 +197,6 @@ class GeminiLiveClient:
             self.session = await self._session_context.__aenter__()
             
             self._connected = True
-            logger.info("✅ Successfully connected to Gemini Live API")
             return True
             
         except Exception as e:
@@ -251,19 +244,22 @@ class GeminiLiveClient:
             return
             
         try:
-            logger.info("Starting to listen for Gemini responses...")
             response_count = 0
             
             async for response in self.session.receive():
                 response_count += 1
-                logger.debug(f"📨 Received response #{response_count} from Gemini")
+                # Only log every 20 responses to reduce noise
+                if response_count % 20 == 0:
+                    logger.debug(f"📨 Received response #{response_count} from Gemini")
                 
                 if not response.server_content:
-                    logger.debug(f"Response #{response_count}: No server_content")
+                    if response_count % 20 == 0:
+                        logger.debug(f"Response #{response_count}: No server_content")
                     continue
                     
                 server_content = response.server_content
-                logger.debug(f"Response #{response_count}: Has server_content")
+                if response_count % 20 == 0:
+                    logger.debug(f"Response #{response_count}: Has server_content")
                 
                 # Handle interruptions
                 if hasattr(server_content, "interrupted") and server_content.interrupted:
@@ -301,23 +297,16 @@ class GeminiLiveClient:
                     else:
                         logger.warning("Function call received but no handler provided")
 
-                # Log what we're getting
+                # Process model turns silently unless there's speech
                 if hasattr(server_content, 'model_turn') and server_content.model_turn:
-                    logger.info(f"Response #{response_count}: Has model_turn with {len(server_content.model_turn.parts)} parts")
-                    
                     # Process model turn with audio
                     for part_idx, part in enumerate(server_content.model_turn.parts):
-                        logger.debug(f"Response #{response_count}, Part #{part_idx}: Processing part")
-                        
                         # Check for audio data
                         if hasattr(part, 'inline_data') and part.inline_data and part.inline_data.data:
                             audio_chunk = part.inline_data.data
-                            logger.info(f"🎵 Response #{response_count}, Part #{part_idx}: Found audio chunk: {len(audio_chunk)} bytes")
+                            # Only log if we're debugging specific issues
+                            logger.debug(f"🎵 Response #{response_count}, Part #{part_idx}: Found audio chunk: {len(audio_chunk)} bytes")
                             yield audio_chunk
-                        else:
-                            logger.debug(f"Response #{response_count}, Part #{part_idx}: No inline_data or audio data")
-                else:
-                    logger.debug(f"Response #{response_count}: No model_turn")
                 
                 # Log turn completion
                 if hasattr(server_content, 'turn_complete') and server_content.turn_complete:
@@ -340,9 +329,8 @@ class GeminiLiveClient:
                     self._session_context.__aexit__(None, None, None),
                     timeout=5.0  # 5 second timeout
                 )
-                logger.info("Gemini session closed")
             except asyncio.TimeoutError:
-                logger.warning("Timeout while closing Gemini session - forcing cleanup")
+                pass
             except Exception as e:
                 logger.error(f"Error closing Gemini session: {e}")
         
