@@ -30,6 +30,11 @@ class GeminiLiveClient:
         self.session = None
         self._connected = False
         self.function_call_handler = function_call_handler
+        self.conversation_state = {
+            "quote_mentioned": False,
+            "visit_scheduled": False,
+            "goodbyes_exchanged": False
+        }
         
         # Configure SSL context for macOS certificate issues
         self._setup_ssl_context()
@@ -134,8 +139,8 @@ class GeminiLiveClient:
                 "realtime_input_config": {
                     "automatic_activity_detection": {
                         "disabled": False,
-                        "start_of_speech_sensitivity": types.StartSensitivity.START_SENSITIVITY_HIGH,
-                        "end_of_speech_sensitivity": types.EndSensitivity.END_SENSITIVITY_HIGH,
+                        "start_of_speech_sensitivity": types.StartSensitivity.START_SENSITIVITY_LOW,
+                        "end_of_speech_sensitivity": types.EndSensitivity.END_SENSITIVITY_LOW,
                         "prefix_padding_ms": 20,
                         "silence_duration_ms": 250,
                     }
@@ -180,6 +185,8 @@ class GeminiLiveClient:
                                     },
                                     "required": ["call_transcript", "quote_obtained", "visit_booked", "trade_sentiment_analysis"]
                                 }
+                                # Uncomment the following line to make this function non-blocking:
+                                # , "behavior": "NON_BLOCKING"
                             }
                         ]
                     }
@@ -252,6 +259,21 @@ class GeminiLiveClient:
                 if response_count % 20 == 0:
                     logger.debug(f"📨 Received response #{response_count} from Gemini")
                 
+                # Handle tool calls according to Google documentation
+                if hasattr(response, 'tool_call') and response.tool_call:
+                    logger.info(f"🔧 Tool call received")
+                    if hasattr(response.tool_call, 'function_calls'):
+                        for fc in response.tool_call.function_calls:
+                            logger.info(f"🔧 Function call: {fc.name} with id: {fc.id}")
+                            if self.function_call_handler:
+                                try:
+                                    await self.function_call_handler(fc)
+                                except Exception as e:
+                                    logger.error(f"Error handling function call: {e}")
+                            else:
+                                logger.warning("Function call received but no handler provided")
+                    continue
+                
                 if not response.server_content:
                     if response_count % 20 == 0:
                         logger.debug(f"Response #{response_count}: No server_content")
@@ -269,34 +291,35 @@ class GeminiLiveClient:
                 
                 # Log transcriptions
                 if response.server_content.input_transcription:
-                    logger.info(f"🎤 User said: {response.server_content.input_transcription.text}")
+                    user_text = response.server_content.input_transcription.text
+                    logger.info(f"🎤 User said: {user_text}")
+                    
+                    # Check for goodbye patterns only if text is not None
+                    if user_text:
+                        goodbye_patterns = ["bye", "goodbye", "thanks", "thank you", "see you"]
+                        if any(pattern in user_text.lower() for pattern in goodbye_patterns):
+                            self.conversation_state["goodbyes_exchanged"] = True
+                        
                 if response.server_content.output_transcription:
-                    logger.info(f"🤖 Gemini says: {response.server_content.output_transcription.text}")
+                    ai_text = response.server_content.output_transcription.text
+                    logger.info(f"🤖 Gemini says: {ai_text}")
+                    
+                    # Only process text if it's not None
+                    if ai_text:
+                        # Monitor for quote mentions
+                        if any(word in ai_text.lower() for word in ["quote", "pound", "£", "cost", "price"]):
+                            self.conversation_state["quote_mentioned"] = True
+                        
+                        # Monitor for visit scheduling
+                        if any(word in ai_text.lower() for word in ["scheduled", "appointment", "visit", "saturday", "thursday"]):
+                            self.conversation_state["visit_scheduled"] = True
+                        
+                        # Check if objectives are met and conversation might be ending
+                        if (self.conversation_state["quote_mentioned"] and 
+                            self.conversation_state["visit_scheduled"] and
+                            self.conversation_state["goodbyes_exchanged"]):
+                            logger.info("📊 Call objectives appear to be met - function should be called")
                 
-                # Handle function calls in model_turn parts
-                if hasattr(server_content, 'model_turn') and server_content.model_turn:
-                    for part in server_content.model_turn.parts:
-                        if hasattr(part, 'function_call') and part.function_call:
-                            logger.info(f"🔧 Function call detected: {part.function_call}")
-                            if self.function_call_handler:
-                                try:
-                                    await self.function_call_handler(part.function_call)
-                                except Exception as e:
-                                    logger.error(f"Error handling function call: {e}")
-                            else:
-                                logger.warning("Function call received but no handler provided")
-                
-                # Also handle top-level function calls
-                if hasattr(response.server_content, 'function_call') and response.server_content.function_call:
-                    logger.info(f"🔧 Top-level function call detected: {response.server_content.function_call}")
-                    if self.function_call_handler:
-                        try:
-                            await self.function_call_handler(response.server_content.function_call)
-                        except Exception as e:
-                            logger.error(f"Error handling function call: {e}")
-                    else:
-                        logger.warning("Function call received but no handler provided")
-
                 # Process model turns silently unless there's speech
                 if hasattr(server_content, 'model_turn') and server_content.model_turn:
                     # Process model turn with audio

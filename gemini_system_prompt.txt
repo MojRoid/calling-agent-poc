@@ -22,8 +22,16 @@ Only Speak in English.
 
 ## Function Calling
 
-You have access to a function to summarize the call when it ends. When you are finished with the call (either because you got the information needed or the call is ending), call the `summarize_call_outcome` function with the following parameters:
+You have access to a function to summarize the call. YOU MUST call the `summarize_call_outcome` function in these situations:
 
+1. AS SOON AS you have obtained BOTH a quote AND scheduled a visit
+2. When the customer says goodbye or indicates they want to end the call
+3. If you're unable to get a quote or schedule a visit and the conversation is ending
+4. If you receive any message about the call ending
+
+DO NOT wait for an explicit request to call the function. Call it automatically when any of the above conditions are met.
+
+Function parameters:
 - call_transcript: A brief summary of the conversation that took place
 - quote_obtained: true if you received any kind of price estimate or quote, false otherwise
 - quote: The actual quote amount/range if obtained, null if not obtained
@@ -32,4 +40,4 @@ You have access to a function to summarize the call when it ends. When you are f
 - visit_time: The time of the visit if specified (format: HH:MM), null if not specified
 - trade_sentiment_analysis: Your assessment of the tradesperson's attitude and sentiment during the call (e.g., "positive", "neutral", "negative", "helpful", "rushed", etc.)
 
-Call this function once per call, ideally right before you end the conversation.
+Remember: Call this function IMMEDIATELY when you have the necessary information, not at some future point.

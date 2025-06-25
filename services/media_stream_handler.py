@@ -15,6 +15,7 @@ from services.gemini_client import GeminiLiveClient
 from services.audio_converter_simple import SimpleAudioConverter
 from models import TwilioMessage, CallSummary
 from config import DEFAULT_SYSTEM_INSTRUCTIONS
+from google.genai import types
 
 logger = logging.getLogger(__name__)
 
@@ -77,17 +78,26 @@ class MediaStreamHandler:
                     logger.info(f"   ⏰ Visit time: {self.call_summary.visit_time}")
                 logger.info(f"   😊 Sentiment: {self.call_summary.trade_sentiment_analysis}")
                 
-                # Send function response back to Gemini
+                # Send function response back to Gemini using the correct format
                 if hasattr(self.gemini_client, 'session') and self.gemini_client.session:
-                    function_response = {
-                        "function_response": {
-                            "name": function_name,
-                            "response": {"status": "success", "message": "Call summary recorded successfully"}
+                    # Create a FunctionResponse object according to Google's documentation
+                    function_response = types.FunctionResponse(
+                        id=function_call.id if hasattr(function_call, 'id') else None,
+                        name=function_name,
+                        response={
+                            "status": "success", 
+                            "message": "Call summary recorded successfully"
+                            # For non-blocking functions, you can add scheduling:
+                            # "scheduling": "INTERRUPT"  # or "WHEN_IDLE" or "SILENT"
                         }
-                    }
+                    )
+                    
                     try:
-                        await self.gemini_client.session.send(function_response)
-                        logger.info("📤 Function response sent to Gemini")
+                        # Use send_tool_response method as per documentation
+                        await self.gemini_client.session.send_tool_response(
+                            function_responses=[function_response]
+                        )
+                        logger.info("📤 Function response sent to Gemini using send_tool_response")
                     except Exception as e:
                         logger.error(f"Error sending function response to Gemini: {e}")
             else:
@@ -147,6 +157,10 @@ class MediaStreamHandler:
             # We await the Twilio receiver task. It will only complete when the user hangs up
             # or Twilio sends a 'stop' message.
             await self.receive_from_twilio()
+            
+            # Trigger call summary before closing
+            logger.info("📞 Call ending - triggering summary")
+            await self.trigger_call_summary()
 
             # Once the call is ending, we can safely cancel the Gemini listener task.
             if not gemini_receiver_task.done():
@@ -242,7 +256,6 @@ class MediaStreamHandler:
                     if self.recording_enabled and self.input_audio_file:
                         try:
                             self.input_audio_file.writeframes(audio_pcm)
-                            # Don't log recording progress - too noisy
                         except Exception as e:
                             logger.error(f"Error writing input audio to file: {e}")
                     
@@ -253,7 +266,6 @@ class MediaStreamHandler:
                     success = await self.gemini_client.send_audio_chunk(upsampled_audio, sample_rate=16000)
                     if not success:
                         logger.warning("Failed to send audio chunk to Gemini")
-                    # Don't log audio forwarding - too noisy
                     
                 elif message.event == "stop":
                     logger.info("Received 'stop' from Twilio. Closing stream.")
@@ -386,4 +398,35 @@ class MediaStreamHandler:
         except asyncio.TimeoutError:
             pass
         except Exception:
-            pass 
+            pass
+
+    async def trigger_call_summary(self):
+        """Explicitly trigger the call summary function before ending the call."""
+        if not self.gemini_client or not self.gemini_client.session:
+            return
+            
+        try:
+            # Send a text message to trigger the function call
+            await self.gemini_client.session.send_client_content(
+                turns={
+                    "parts": [{
+                        "text": "The call is ending. Please summarize the call outcome now using the summarize_call_outcome function."
+                    }]
+                }
+            )
+            logger.info("📤 Sent trigger message for call summary")
+            
+            # Wait for the function call and response
+            timeout = 5.0
+            start_time = asyncio.get_event_loop().time()
+            
+            while (asyncio.get_event_loop().time() - start_time) < timeout:
+                if self.call_summary is not None:
+                    logger.info("✅ Call summary received")
+                    break
+                await asyncio.sleep(0.1)
+            else:
+                logger.warning("⚠️ Timeout waiting for call summary")
+            
+        except Exception as e:
+            logger.error(f"Error triggering call summary: {e}") 
