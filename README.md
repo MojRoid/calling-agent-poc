@@ -1,43 +1,23 @@
-# Calling Agent Service
+# Calling Agent POC (TypeScript)
 
-A Python-based phone calling service that integrates Twilio Media Streams with Google's Gemini 2.5 Flash Live API for real-time conversational AI.
+An AI-powered phone calling agent that can make automated phone calls using Twilio and Google's Gemini AI. The agent can have natural conversations, handle interruptions, and summarize call outcomes.
 
-## Overview
+## Features
 
-This service enables:
-- Placing phone calls via Twilio
-- Real-time audio streaming using Twilio Media Streams
-- Integration with Google's Gemini 2.5 Flash model for conversational AI
-- Bidirectional audio processing with automatic interruption handling
-
-## Architecture
-
-```
-Phone Call ↔ Twilio ↔ Your Server ↔ Google Gemini Live API
-                ↕
-             WebSocket
-                ↕  
-         Your ngrok URL
-```
-
-### Components
-- **FastAPI Server**: Handles HTTP endpoints and WebSocket connections
-- **Twilio Integration**: Places calls and manages media streams
-- **Gemini Client**: Connects to Google's Gemini API for AI processing
-- **Media Stream Handler**: Bridges Twilio and Gemini for real-time audio
-- **Audio Converter**: Handles μ-law/PCM audio format conversions
+- 🤖 Real-time conversational AI using Google Gemini
+- 📞 Automated phone calls via Twilio
+- 🎤 Real-time audio streaming and processing
+- 🚫 Machine detection to avoid voicemails
+- 📝 Automatic call summarization
+- 🔊 High-quality audio conversion between formats
+- 💾 Call recording for debugging
 
 ## Prerequisites
 
-- Python 3.9 or higher
-- Twilio Account with:
-  - Account SID
-  - Auth Token
-  - Phone Number
-- Google Cloud Project with:
-  - Vertex AI API enabled
-  - Access to `gemini-live-2.5-flash-preview-native-audio` model
-  - Proper authentication (gcloud CLI logged in)
+- Node.js 18+ and npm
+- Twilio account with phone number
+- Google Cloud account with Vertex AI enabled
+- ngrok for local development (or public URL for webhooks)
 
 ## Installation
 
@@ -49,232 +29,180 @@ cd calling-agent-poc
 
 2. Install dependencies:
 ```bash
-pip install -r requirements.txt
+npm install
 ```
 
-If you have an issue with audioop, also run:
+3. Create `.env` file with your credentials:
 ```bash
-pip install audioop-lts
-```
-
-3. Set up Google Cloud authentication:
-```bash
-# Login to Google Cloud
-gcloud auth login
-gcloud auth application-default login
-```
-
-## Configuration
-
-The service requires a `.env` file with your configuration values. Copy `.env.example` to `.env` and update with your values:
-
-```env
 # Twilio Configuration
-TWILIO_ACCOUNT_SID=your-account-sid
-TWILIO_AUTH_TOKEN=your-auth-token
-TWILIO_PHONE_NUMBER=+1234567890
+TWILIO_ACCOUNT_SID=your_twilio_account_sid
+TWILIO_AUTH_TOKEN=your_twilio_auth_token
+TWILIO_PHONE_NUMBER=+1234567890  # Your Twilio phone number
 
-# Vertex AI Configuration
-VERTEX_PROJECT_ID=your-project-id
-VERTEX_LOCATION=us-central1
+# Google Vertex AI Configuration
+VERTEX_PROJECT_ID=your_gcp_project_id
+VERTEX_LOCATION=us-central1  # or your preferred location
+
+# Gemini Model
+GEMINI_MODEL=gemini-1.5-flash-002
 
 # Server Configuration
-SERVER_BASE_URL=https://your-ngrok-url.ngrok-free.app
+SERVER_BASE_URL=https://your-domain.ngrok-free.app  # Your public URL
 SERVER_PORT=8080
 
-# Gemini Model Configuration
-GEMINI_MODEL=gemini-2.5-flash-preview-native-audio-dialog
-
-# Test Configuration
-TEST_PHONE_NUMBER=+1234567890
+# Test Configuration (optional)
+TEST_PHONE_NUMBER=+1234567890  # Phone number to test calls
 ```
 
-## System Prompt Configuration
+4. Create `gemini_system_prompt.txt` with your AI agent's instructions. Example content is already provided in the file.
 
-The AI assistant's behavior is controlled by the `gemini_system_prompt.txt` file. This file is **required** for the application to start.
+## Running the Application
 
-Edit `gemini_system_prompt.txt` to customize the assistant's personality and behavior:
+### Development Mode
 
-```
-You are a helpful cooking assistant. You are knowledgeable about:
-- Various cuisines from around the world
-- Cooking techniques and methods
-- Recipe creation and modification
-
-Keep your responses conversational and appropriate for phone conversations.
+Run with auto-reload on file changes:
+```bash
+npm run dev
 ```
 
-## Running the Service
+### Production Mode
 
-1. **Start the server**:
-   ```bash
-   python app.py
-   ```
-   The server will start on port 8080.
-
-2. **Set up ngrok** (for local development):
-   ```bash
-   ngrok http 8080 --domain=your-ngrok-url.ngrok-free.app
-   ```
-   Update `SERVER_BASE_URL` in your `.env` file with your ngrok URL.
-
-3. **Place a test call**:
-   
-   Using the test script (recommended):
-   ```bash
-   python make_test_call.py
-   ```
-   
-   Or using curl directly:
-   ```bash
-   curl -X POST http://localhost:8080/place-call \
-     -H "Content-Type: application/json" \
-     -d '{
-       "to": "+1234567890"
-     }'
-   ```
-
-## API Endpoints
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/` | GET | Root endpoint |
-| `/health` | GET | Health check |
-| `/place-call` | POST | Initiate a phone call |
-| `/twiml/stream` | POST | Twilio webhook (internal) |
-| `/call-status` | POST | Twilio status callback (internal) |
-| `/media-stream` | WebSocket | Real-time audio streaming (internal) |
-
-### Place Call Request
-
-```json
-{
-  "to": "+1234567890"
-}
+Build and run:
+```bash
+npm run build
+npm start
 ```
 
-Response:
-```json
-{
-  "callSid": "CAxxxxxxxxxx",
-  "status": "queued"
-}
+### Setting up ngrok
+
+If running locally, you need ngrok to expose your server:
+```bash
+ngrok http 8080
 ```
 
-## Live API Features
-
-The Gemini integration includes advanced features:
-
-- **Automatic Interruption Handling**: Users can interrupt the AI naturally
-- **Voice Activity Detection (VAD)**: Automatically detects speech start/end
-- **Real-time Transcriptions**: Logs what both user and AI say
-- **Affective Dialog**: Natural, emotionally appropriate responses
-- **Proactive Audio**: More fluid, natural conversation flow
-
-## Call Handling Features
-
-- **Answering Machine Detection**: Automatically detects voicemail and hangs up without leaving a message
-- **Declined Call Handling**: Ends the call immediately if declined/busy
-- **No Voicemail**: The system will not leave voicemail messages
-- **Call Status Tracking**: Monitors call status (answered, busy, failed, no-answer)
-
-## Audio Processing
-
-- **Twilio → Service**: μ-law encoded, 8kHz sample rate
-- **Service → Gemini**: PCM, 16kHz sample rate (upsampled)
-- **Gemini → Service**: PCM, 24kHz sample rate
-- **Service → Twilio**: μ-law encoded, 8kHz (downsampled)
-
-The service automatically records conversations in the `recordings/` directory for debugging purposes.
+Update `SERVER_BASE_URL` in `.env` with the ngrok URL.
 
 ## Testing
 
-Run all tests:
-```bash
-python run_tests.py
-```
-
-Run individual test suites:
-```bash
-# Test audio converter
-python tests/test_audio_converter.py
-
-# Test Twilio service (mocked)
-python tests/test_twilio_service.py
-
-# Test Gemini client (requires authentication)
-python tests/test_gemini_client.py
-
-# Test API endpoints (requires running server)
-python tests/test_api_endpoints.py
-```
-
-## Test Utilities
-
-### Test Script
-
-Use `make_test_call.py` to easily test your calling agent:
+### Make a Test Call
 
 ```bash
-python make_test_call.py
+npm run test:call
 ```
 
-This script will:
-- Check if your server is running
-- Use the `TEST_PHONE_NUMBER` from your `.env` file
-- Place a test call with proper error handling
-- Provide detailed status information
+This will place a call to the phone number configured in `TEST_PHONE_NUMBER`.
 
-Make sure to set `TEST_PHONE_NUMBER` in your `.env` file to your phone number.
+### API Endpoints
 
-## Project Structure
+- `GET /` - Health check
+- `GET /health` - Detailed health status
+- `POST /place-call` - Initiate a phone call
+  ```json
+  {
+    "to": "+1234567890"
+  }
+  ```
+- `POST /twiml/stream` - Twilio webhook for TwiML
+- `POST /call-status` - Twilio status callback
+- `WS /media-stream` - WebSocket endpoint for audio streaming
+
+## Architecture
+
+The application consists of:
+
+1. **Express Server** (`src/app.ts`) - Main HTTP server with WebSocket support
+2. **Twilio Service** (`src/services/twilioService.ts`) - Handles phone call operations
+3. **Gemini Client** (`src/services/geminiClient.ts`) - Manages AI conversation
+4. **Media Stream Handler** (`src/services/mediaStreamHandler.ts`) - Bridges audio between Twilio and Gemini
+5. **Audio Converter** (`src/services/audioConverter.ts`) - Converts between audio formats
+
+### Call Flow
+
+1. Client calls `/place-call` endpoint
+2. Server initiates call via Twilio API
+3. Twilio fetches TwiML instructions from `/twiml/stream`
+4. When call is answered, Twilio connects to WebSocket at `/media-stream`
+5. Audio streams bidirectionally between caller and Gemini AI
+6. AI processes speech and responds in real-time
+7. Call summary is generated when call ends
+
+## Configuration
+
+### System Prompt
+
+Edit `gemini_system_prompt.txt` to customize the AI agent's behavior, personality, and objectives.
+
+### Audio Settings
+
+- Input: 8kHz μ-law from Twilio
+- Processing: 16kHz PCM for Gemini
+- Output: 24kHz PCM from Gemini
+- Recording: Saved as WAV files in `recordings/` directory
+
+## Development
+
+### Project Structure
+
 ```
 calling-agent-poc/
-├── .env                            # Configuration values (create this)
-├── app.py                          # Main FastAPI application
-├── config.py                       # Configuration loader
-├── models.py                       # Data models
-├── gemini_system_prompt.txt        # AI assistant instructions (required)
-├── requirements.txt                # Python dependencies
-├── run_tests.py                    # Test runner script
-├── make_test_call.py              # Utility to place test calls
-├── services/
-│   ├── twilio_service.py          # Twilio integration
-│   ├── gemini_client.py           # Gemini API client
-│   ├── media_stream_handler.py    # WebSocket handler
-│   └── audio_converter_simple.py  # Audio format converter
-└── tests/
-    ├── test_twilio_service.py
-    ├── test_gemini_client.py
-    ├── test_audio_converter.py
-    └── test_api_endpoints.py
+├── src/
+│   ├── app.ts                 # Main application
+│   ├── config.ts              # Configuration loader
+│   ├── makeTestCall.ts        # Test call script
+│   ├── models/                # TypeScript interfaces
+│   ├── services/              # Service modules
+│   └── utils/                 # Utility modules
+├── dist/                      # Compiled JavaScript
+├── logs/                      # Application logs
+├── recordings/                # Call recordings
+├── package.json               # Dependencies
+├── tsconfig.json              # TypeScript config
+└── gemini_system_prompt.txt   # AI instructions
+```
+
+### Building
+
+```bash
+npm run build
+```
+
+### Linting
+
+```bash
+npm run lint
+```
+
+### Formatting
+
+```bash
+npm run format
 ```
 
 ## Troubleshooting
 
-### Missing Configuration
-If you see errors about missing configuration values:
-- Ensure you've created a `.env` file with all required values
-- Check that all values in the `.env` file are correct
-- The application will not start without all required configuration
+1. **WebSocket Connection Issues**
+   - Ensure ngrok is running and URL is updated
+   - Check firewall settings
+   - Verify Twilio webhook configuration
 
-### Authentication Issues
-- Ensure you're logged in: `gcloud auth list`
-- Run `gcloud auth application-default login` for credentials
-- Verify your project has access to the Gemini model
+2. **Audio Quality Issues**
+   - Check network latency
+   - Verify audio conversion settings
+   - Monitor CPU usage during calls
 
-### Model Access
-If you see "model not found" errors, your project needs access to the model:
-1. Visit [Vertex AI Model Garden](https://console.cloud.google.com/vertex-ai/model-garden)
-2. Search for the model
-3. Request access for your project
+3. **Gemini Connection Issues**
+   - Verify Google Cloud credentials
+   - Check Vertex AI API is enabled
+   - Ensure proper authentication setup
 
-### Connection Issues
-- Ensure your ngrok URL is accessible from the internet
-- Check that Twilio webhooks can reach your server
-- Verify WebSocket connections are not blocked by firewalls
+## License
 
-### Audio Issues
-- Check the recordings in `recordings/` directory for debugging
-- Verify audio is being received from both Twilio and Gemini
-- Review logs for audio processing errors 
+MIT
+
+## Contributing
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request 

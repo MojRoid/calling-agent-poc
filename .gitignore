@@ -1,103 +1,171 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-.venv/
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
 
-# Virtual environments
-bin/
-include/
-lib/
-lib64/
-share/
-pyvenv.cfg
+# Testing
+coverage/
+*.lcov
+.nyc_output
 
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
+# Production builds
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+dist-ssr/
+build/
+out/
+*.local
 
-# PyInstaller
-*.manifest
-*.spec
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
-
-# IDEs
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# Logs
+# Debug logs
 logs/
 *.log
-recordings/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.sublime-project
+*.sublime-workspace
 
 # Environment variables
 .env
 .env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# OS files
+# TypeScript
+*.tsbuildinfo
+.tsc-cache/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional stylelint cache
+.stylelintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# yarn v2
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# Project specific
+recordings/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.gradle/
+.claude/
+
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
-
-# Audio files (test outputs)
-output.wav
-*.wav
-!sample.wav
 
 # Temporary files
 *.tmp
-*.bak
+*.temp
+.tmp/
+.temp/
 
-# Jupyter Notebook
-.ipynb_checkpoints
+# Lock files (keep package-lock.json)
+yarn.lock
+pnpm-lock.yaml
 
-# pyenv
-.python-version
+# Next.js
+.next/
+out/
 
-# Gradle/Kotlin remnants (if any)
-.gradle/
-gradle/
-gradlew
-gradlew.bat
-*.gradle
-*.kts
-src/
+# Nuxt.js
+.nuxt/
 
-npm-debug.log
-node_modules
-.twilio-functions
-/gradle-*
-/build
-.gradle/
+# Gatsby
+.cache/
+public/
+
+# VuePress
+.vuepress/dist
+
+# Serverless
+.serverless/
+
+# FuseBox
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file
+.tern-port
+
+# Parcel cache
+.cache
+.parcel-cache
+
+# Docusaurus cache
+.docusaurus
+
+# Storybook
+storybook-static/
+
+# Bundle analysis
+stats.html
+
+# AWS
+.aws-sam/
+
+# Jest
+jest_html_reporters.html
+test-report.xml
+
+# SonarQube
+.sonar/
+.scannerwork/
